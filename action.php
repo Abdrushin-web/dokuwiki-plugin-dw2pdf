@@ -413,12 +413,8 @@ class action_plugin_dw2pdf extends DokuWiki_Action_Plugin {
         $mpdf->setAutoTopMargin = 'stretch';
         $mpdf->setAutoBottomMargin = 'stretch';
 //            $mpdf->pagenumSuffix = '/'; //prefix for {nbpg}
-        if($hasToC) {
-            $mpdf->PageNumSubstitutions[] = array('from' => 1, 'reset' => 0, 'type' => 'i', 'suppress' => 'off'); //use italic pageno until ToC
-            $mpdf->h2toc = $levels;
-        } else {
-            $mpdf->PageNumSubstitutions[] = array('from' => 1, 'reset' => 0, 'type' => '1', 'suppress' => 'off');
-        }
+        $mpdf->PageNumSubstitutions[] = array('from' => 1, 'reset' => 0, 'type' => '1', 'suppress' => 'off');
+        $mpdf->h2toc = $levels;
 
         // Watermarker
         if($watermark) {
@@ -909,7 +905,7 @@ class action_plugin_dw2pdf extends DokuWiki_Action_Plugin {
 
         $hasToC = $INPUT->bool('toc', (bool) $this->getConf('toc'));
         $levels = array();
-        if($hasToC) {
+        //if($hasToC) {
             $toclevels = $INPUT->str('toclevels', $this->getConf('toclevels'), true);
             list($top_input, $max_input) = explode('-', $toclevels, 2);
             list($top_conf, $max_conf) = explode('-', $this->getConf('toclevels'), 2);
@@ -945,7 +941,7 @@ class action_plugin_dw2pdf extends DokuWiki_Action_Plugin {
             for($level = $bounds['top']; $level <= $bounds['max']; $level++) {
                 $levels["H$level"] = $level - 1;
             }
-        }
+        //}
         $this->exportConfig['hasToC'] = $hasToC;
         $this->exportConfig['levels'] = $levels;
 
