@@ -29,7 +29,7 @@ class renderer_plugin_dw2pdf extends Doku_Renderer_xhtml {
     /**
      * Simplified header printing with PDF bookmarks
      */
-    function header($text, $level, $pos) {
+    function header($text, $level, $pos, $returnonly = false) {
         if(!$text) return; //skip empty headlines
 
         $hid = $this->_headerToLink($text,true);
@@ -117,7 +117,7 @@ class renderer_plugin_dw2pdf extends Doku_Renderer_xhtml {
     /**
      * no obfuscation for email addresses
      */
-    function emaillink($address, $name = NULL) {
+    function emaillink($address, $name = NULL, $returnonly = false) {
         global $conf;
         $old = $conf['mailguard'];
         $conf['mailguard'] = 'none';
