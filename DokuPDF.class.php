@@ -7,28 +7,38 @@
  *
  * @author Andreas Gohr <andi@splitbrain.org>
  */
-global $conf;
-if(!defined('_MPDF_TEMP_PATH')) define('_MPDF_TEMP_PATH', $conf['tmpdir'].'/dwpdf/'.rand(1,1000).'/');
-if(!defined('_MPDF_TTFONTDATAPATH')) define('_MPDF_TTFONTDATAPATH',$conf['cachedir'].'/mpdf_ttf/');
 
-require_once(dirname(__FILE__)."/mpdf/mpdf.php");
+use dokuwiki\plugin\dw2pdf\DokuImageProcessorDecorator;
+
+require_once __DIR__ . '/vendor/autoload.php';
 
 /**
  * Class DokuPDF
  * Some DokuWiki specific extentions
  */
-class DokuPDF extends mpdf {
+class DokuPDF extends \Mpdf\Mpdf
+{
 
-    function __construct($pagesize='A4', $orientation='portrait'){
+    /**
+     * DokuPDF constructor.
+     *
+     * @param string $pagesize
+     * @param string $orientation
+     * @param int $fontsize
+     */
+    function __construct($pagesize = 'A4', $orientation = 'portrait', $fontsize = 11)
+    {
         global $conf;
 
-        io_mkdir_p(_MPDF_TTFONTDATAPATH);
+        if (!defined('_MPDF_TEMP_PATH')) define('_MPDF_TEMP_PATH', $conf['tmpdir'] . '/dwpdf/' . rand(1, 1000) . '/');
         io_mkdir_p(_MPDF_TEMP_PATH);
 
         $format = $pagesize;
-        if($orientation == 'landscape') $format .= '-L';
+        if ($orientation == 'landscape') {
+            $format .= '-L';
+        }
 
-        switch($conf['lang']) {
+        switch ($conf['lang']) {
             case 'zh':
             case 'zh-tw':
             case 'ja':
@@ -41,8 +51,22 @@ class DokuPDF extends mpdf {
         }
 
         // we're always UTF-8
-        parent::__construct($mode, $format);
-        $this->SetAutoFont(AUTOFONT_ALL);
+        parent::__construct(
+            array(
+                'mode' => $mode,
+                'format' => $format,
+                'fontsize' => $fontsize,
+                'ImageProcessorClass' => DokuImageProcessorDecorator::class,
+                'tempDir' => _MPDF_TEMP_PATH //$conf['tmpdir'] . '/tmp/dwpdf'
+            )
+        );
+
+        $this->autoScriptToLang = true;
+        $this->baseScript = 1;
+        $this->autoVietnamese = true;
+        $this->autoArabic = true;
+        $this->autoLangToFont = true;
+
         $this->ignore_invalid_utf8 = true;
         $this->tabSpaces = 4;
     }
@@ -50,106 +74,20 @@ class DokuPDF extends mpdf {
     /**
      * Cleanup temp dir
      */
-    function __destruct(){
-        $this->deletedir(_MPDF_TEMP_PATH);
-    }
-
-    /**
-     * Recursively delete a directory and its contents
-     *
-     * @link http://de3.php.net/manual/en/function.rmdir.php#108113
-     */
-    function deletedir($dir){
-        foreach(glob($dir . '/*') as $file) {
-            if(is_dir($file))
-                $this->deletedir($file);
-            else
-                @unlink($file);
-        }
-        @rmdir($dir);
+    function __destruct()
+    {
+        io_rmdir(_MPDF_TEMP_PATH, true);
     }
 
     /**
      * Decode all paths, since DokuWiki uses XHTML compliant URLs
+     *
+     * @param string $path
+     * @param string $basepath
      */
-    function GetFullPath(&$path,$basepath=''){
+    function GetFullPath(&$path, $basepath = '')
+    {
         $path = htmlspecialchars_decode($path);
         parent::GetFullPath($path, $basepath);
     }
-
-    /**
-     * Override the mpdf _getImage function
-     *
-     * This function takes care of gathering the image data from HTTP or
-     * local files before passing the data back to mpdf's original function
-     * making sure that only cached file paths are passed to mpdf. It also
-     * takes care of checking image ACls.
-     */
-    function _getImage(&$file, $firsttime=true, $allowvector=true, $orig_srcpath=false){
-        global $conf;
-
-        // build regex to parse URL back to media info
-        $re = preg_quote(ml('xxx123yyy','',true,'&',true),'/');
-        $re = str_replace('xxx123yyy','([^&\?]*)',$re);
-
-        // extract the real media from a fetch.php uri and determine mime
-        if(preg_match("/^$re/",$file,$m) ||
-            preg_match('/[&\?]media=([^&\?]*)/',$file,$m)){
-            $media = rawurldecode($m[1]);
-            list($ext,$mime) = mimetype($media);
-        }else{
-            list($ext,$mime) = mimetype($file);
-        }
-
-        // local files
-        $local = '';
-        if(substr($file,0,9) == 'dw2pdf://'){
-            // support local files passed from plugins
-            $local = substr($file,9);
-        }elseif(!preg_match('/(\.php|\?)/',$file)){
-            $re = preg_quote(DOKU_URL,'/');
-            // directly access local files instead of using HTTP, skip dynamic content
-            $local = preg_replace("/^$re/i",DOKU_INC,$file);
-        }
-
-        if(substr($mime,0,6) == 'image/'){
-            if(!empty($media)){
-                // any size restrictions?
-                $w = $h = 0;
-                if(preg_match('/[\?&]w=(\d+)/',$file, $m)) $w = $m[1];
-                if(preg_match('/[\?&]h=(\d+)/',$file, $m)) $h = $m[1];
-
-                if(preg_match('/^(https?|ftp):\/\//',$media)){
-                    $local = media_get_from_URL($media,$ext,-1);
-                    if(!$local) $local = $media; // let mpdf try again
-                }else{
-                    $media = cleanID($media);
-                    //check permissions (namespace only)
-                    if(auth_quickaclcheck(getNS($media).':X') < AUTH_READ){
-                        $file = '';
-                    }
-                    $local  = mediaFN($media);
-                }
-
-                //handle image resizing/cropping
-                if($w && file_exists($local)){
-                    if($h){
-                        $local = media_crop_image($local,$ext,$w,$h);
-                    }else{
-                        $local = media_resize_image($local,$ext,$w,$h);
-                    }
-                }
-            }elseif(preg_match('/^(https?|ftp):\/\//',$file)){ // fixed external URLs
-                $local = media_get_from_URL($file,$ext,$conf['cachetime']);
-            }
-
-            if($local){
-                $file = $local;
-                $orig_srcpath = $local;
-            }
-        }
-
-        return parent::_getImage($file, $firsttime, $allowvector, $orig_srcpath);
-    }
-
 }
