@@ -286,6 +286,12 @@ class FontVariables
 				"unbatang" => [/* Korean */
 					'R' => "UnBatang_0613.ttf",
 				],
+				"lora" => [
+					'R' => "Lora-Regular.ttf",
+					'B' => "Lora-Bold.ttf",
+					'I' => "Lora-Italic.ttf",
+					'BI' => "Lora-BoldItalic.ttf",
+				],
 			],
 
 			// Add fonts to this array if they contain characters in the SIP or SMP Unicode planes
